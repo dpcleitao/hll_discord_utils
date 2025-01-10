@@ -7,11 +7,10 @@ import asyncio
 import re
 from typing import List
 from rcon.discord.discordbase import DiscordBase
-from rcon.commands import Rcon
+import rcon.rcon as rcon
 from lib.config import config
 
 logger = logging.getLogger(__name__)
-rcon = Rcon()
 
 class Registration(commands.Cog, DiscordBase):
     def __init__(self, bot):
