@@ -86,16 +86,27 @@ class Registration(commands.Cog, DiscordBase):
                         else:
                             formatted_name = display_name[:32]
                         
-                        await interaction.user.edit(nick=formatted_name)
+                        # Check if the current nickname matches
+                        current_nick = interaction.user.display_name
+                        logger.info(f"Current nickname: {current_nick}, Desired nickname: {formatted_name}")
                         
-                        # Send success message
-                        await interaction.response.send_message(
-                            f"Registration successful!\n"
-                            f"Display Name: {display_name}\n"
-                            f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
-                            f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}",
-                            ephemeral=True
-                        )
+                        if current_nick == formatted_name:
+                            await interaction.response.send_message(
+                                f"Registration successful!\n"
+                                f"Your Discord nickname already matches your T17 name.\n"
+                                f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}",
+                                ephemeral=True
+                            )
+                        else:
+                            await interaction.user.edit(nick=formatted_name)
+                            logger.info("Nickname updated successfully")
+                            
+                            await interaction.response.send_message(
+                                f"Registration successful!\n"
+                                f"Discord nickname updated to match T17 name: {formatted_name}\n"
+                                f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}",
+                                ephemeral=True
+                            )
                         
                         # Send webhook if configured
                         if self.webhook_url:
