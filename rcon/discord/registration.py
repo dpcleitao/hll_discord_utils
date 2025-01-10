@@ -9,6 +9,7 @@ from typing import List
 from rcon.discord.discordbase import DiscordBase
 import rcon.rcon as rcon
 from lib.config import config
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class Registration(commands.Cog, DiscordBase):
         super().__init__()
         self.bot = bot
         self.config = config.get("rcon", 0, "registration", 0)
+        self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook")
         self.in_Loop = False
 
     @app_commands.command(
@@ -146,6 +148,29 @@ class Registration(commands.Cog, DiscordBase):
         except Exception as e:
             logger.error(f"Unexpected error in query: {e}")
             return None
+
+    async def send_registration_webhook(self, user, t17_name: str, clan_tag: str = None, vote_reminders: str = None):
+        """Send webhook notification about new registration"""
+        if not self.webhook_url:
+            return
+
+        webhook = discord.Webhook.from_url(
+            self.webhook_url,
+            session=aiohttp.ClientSession()
+        )
+        
+        try:
+            await webhook.send(
+                f"New Registration:\n"
+                f"User: {user.mention} ({user.id})\n"
+                f"T17 Name: {t17_name}\n"
+                f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
+                f"Vote Reminders: {vote_reminders}"
+            )
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
+        finally:
+            await webhook.session.close()
 
 async def setup(bot):
     await bot.add_cog(Registration(bot)) 
