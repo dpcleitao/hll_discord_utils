@@ -52,68 +52,98 @@ class Registration(commands.Cog, DiscordBase):
             )
             return
 
-        vote_reminders_value = vote_reminders.value if vote_reminders else "no"
+        try:
+            # Try to update existing registration first
+            self.cursor.execute('''
+                UPDATE voter_register 
+                SET votreg_dis_user = ?, votreg_dis_nick = ?, votreg_t17_id = ?, 
+                    votereg_ask_reg_cnt = ?, votereg_not_ingame_cnt = ?
+                WHERE votreg_dis_user_id = ?
+            ''', (str(interaction.user.name), str(interaction.user.display_name), 
+                  str(t17_name), 0, 0, int(interaction.user.id)))
+            
+            if self.cursor.rowcount == 0:
+                # If no rows were updated, insert new registration
+                self.insert_Voter_Registration(
+                    discord_user=interaction.user.name,
+                    discord_user_id=interaction.user.id,
+                    discord_nick=interaction.user.display_name,
+                    player_id=t17_name,
+                    register_cnt=0,
+                    not_ingame_cnt=0
+                )
+            self.conn.commit()
 
-        # Store/update registration
-        self.insert_Voter_Registration(
-            discord_user=interaction.user.name,
-            discord_user_id=interaction.user.id,
-            discord_nick=interaction.user.display_name,
-            player_id=t17_name,
-            register_cnt=0,
-            not_ingame_cnt=0
-        )
-
-        # Update nickname if enabled
-        if self.config["t17_discord_user_name"]:
-            try:
-                # Get the player name from the autocomplete result
-                player_data = await self.query_Player_Database(t17_name)
-                if player_data and player_data[0]:
-                    display_name = player_data[0][1]  # Use the actual player name instead of T17 ID
-                    if clan_tag:
-                        formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"  # Limit lengths to fit within 32 chars
+            # Update nickname if enabled
+            if self.config["t17_discord_user_name"]:
+                try:
+                    # Get the player name from the autocomplete result
+                    multi_array = await self.query_Player_Database(t17_name)
+                    if multi_array and len(multi_array) > 0:
+                        display_name = multi_array[0][1]  # Use the actual player name
+                        if clan_tag:
+                            formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
+                        else:
+                            formatted_name = display_name[:32]
+                        
+                        await interaction.user.edit(nick=formatted_name)
+                        
+                        # Send success message
+                        await interaction.response.send_message(
+                            f"Registration successful!\n"
+                            f"Display Name: {display_name}\n"
+                            f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
+                            f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}",
+                            ephemeral=True
+                        )
+                        
+                        # Send webhook if configured
+                        if self.webhook_url:
+                            try:
+                                webhook = discord.Webhook.from_url(
+                                    self.webhook_url,
+                                    session=aiohttp.ClientSession()
+                                )
+                                await webhook.send(
+                                    f"New Registration:\n"
+                                    f"User: {interaction.user.mention} ({interaction.user.id})\n"
+                                    f"T17 Name: {display_name}\n"
+                                    f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
+                                    f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}"
+                                )
+                                await webhook.session.close()
+                            except Exception as e:
+                                logger.error(f"Webhook error: {e}")
                     else:
-                        formatted_name = display_name[:32]  # Limit to 32 chars if no clan tag
-                    
-                    await interaction.user.edit(nick=formatted_name)
+                        await interaction.response.send_message(
+                            "Failed to retrieve player name. Registration saved but nickname not updated.",
+                            ephemeral=True
+                        )
+                except discord.Forbidden:
                     await interaction.response.send_message(
-                        f"Registration successful!\n"
-                        f"Display Name: {display_name}\n"
-                        f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
-                        f"Vote Reminders: {vote_reminders.value}",
+                        "Unable to update your Discord nickname. Please contact a Discord admin to grant the bot necessary permissions.",
                         ephemeral=True
                     )
-                else:
+                    logger.warning(f"Bot lacks permission to change nickname for user {interaction.user.id}")
+                except Exception as e:
+                    logger.error(f"Failed to update nickname: {e}")
                     await interaction.response.send_message(
-                        "Failed to retrieve player name. Registration saved but nickname not updated.",
+                        "Failed to update nickname. Your registration is still saved.",
                         ephemeral=True
                     )
-            except discord.Forbidden:
+            else:
                 await interaction.response.send_message(
-                    "Unable to update your Discord nickname. Please contact a Discord admin to grant the bot necessary permissions.",
-                    ephemeral=True
-                )
-                logger.warning(f"Bot lacks permission to change nickname for user {interaction.user.id}")
-            except discord.HTTPException as e:
-                logger.error(f"Failed to update nickname: {e}")
-                await interaction.response.send_message(
-                    "Failed to update nickname due to Discord limitations. Your registration is still saved.",
+                    f"Registration successful!\n"
+                    f"Vote Reminders: {vote_reminders.value if vote_reminders else 'No'}",
                     ephemeral=True
                 )
 
-        # Send webhook if configured
-        if self.config.get("registration_webhook_url"):
-            try:
-                await self.send_registration_webhook(
-                    interaction.user,
-                    t17_name,
-                    clan_tag,
-                    vote_reminders.value
-                )
-            except Exception as e:
-                logger.error(f"Failed to send webhook notification: {e}")
-                # Continue execution - webhook failure shouldn't affect registration
+        except Exception as e:
+            logger.error(f"Registration error: {e}")
+            await interaction.response.send_message(
+                "Failed to complete registration. Please try again later.",
+                ephemeral=True
+            )
 
     @register.autocomplete("t17_name")
     async def name_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
