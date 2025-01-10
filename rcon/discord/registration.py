@@ -101,29 +101,25 @@ class Registration(commands.Cog, DiscordBase):
     @register.autocomplete("t17_name")
     async def name_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         try:
-            while self.in_Loop:
-                await asyncio.sleep(1)
+            if len(current) < 5:  # Increased minimum length to 5
+                return []
             
-            self.in_Loop = True
+            logger.info(f"Search query: {current}")
+            multi_array = await rcon.get_Players_By_Name(current.replace(" ", "%"))
             
-            if len(current) >= 2:
-                logger.info(f"Search query: {current.replace(" ", "%")}")
-                multi_array = await self.query_Player_Database(current.replace(" ", "%"))
-        
-                if multi_array is not None and len(multi_array) >= 1:
-                    result = [
-                        app_commands.Choice(name=f"Last: {datetime.fromtimestamp(player[3]/1000).strftime('%Y-%m-%d')} - {", ".join(player[1])}"[:100], value=player[0])
-                        for player in multi_array
-                    ]
-                    self.in_Loop = False
-                    return result
+            if not multi_array:
+                return []
             
-            self.in_Loop = False
-            return []
+            return [
+                app_commands.Choice(
+                    name=f"{player.name} (Last seen: {datetime.fromtimestamp(player.last_seen/1000).strftime('%Y-%m-%d')})"[:100],
+                    value=player.steam_id_64
+                )
+                for player in multi_array[:25]
+            ]
             
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            self.in_Loop = False
+            logger.error(f"Unexpected error in autocomplete: {e}")
             return []
 
     async def query_Player_Database(self, query: str) -> List[str]:
