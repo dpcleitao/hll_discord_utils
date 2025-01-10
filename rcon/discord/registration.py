@@ -182,17 +182,29 @@ class Registration(commands.Cog, DiscordBase):
 
     async def query_Player_Database(self, query: str) -> List[tuple]:
         try:
-            logger.info(f"Querying database for player ID: {query}")
-            payload = {"page_size": 25, "page": 1, "player_name": query}
-            result = await rcon.get_Player_History(payload)
+            logger.info(f"Querying database for: {query}")
             
-            if result:
-                players = result.get_Players_Name()
-                logger.info(f"Query result: {players}")
-                return players if players else None
+            # If it's a T17 ID (32 hex characters)
+            if bool(re.fullmatch(r"[0-9a-fA-F]{32}", query)):
+                # Get player by ID
+                player = await rcon.get_Player_Info(query)
+                if player:
+                    logger.info(f"Found player by ID: {player.name}")
+                    return [[query, player.name, player.last_seen, player.last_seen]]
+                else:
+                    logger.error(f"No player found for ID: {query}")
+                    return None
             else:
-                logger.error("No result from get_Player_History")
-                return None
+                # Search by name
+                payload = {"page_size": 25, "page": 1, "player_name": query}
+                result = await rcon.get_Player_History(payload)
+                if result:
+                    players = result.get_Players_Name()
+                    logger.info(f"Search results: {players}")
+                    return players
+                else:
+                    logger.error("No results from name search")
+                    return None
             
         except Exception as e:
             logger.error(f"Error querying player database: {e}")
