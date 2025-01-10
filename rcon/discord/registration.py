@@ -8,8 +8,12 @@ import re
 from rcon.discord.discordbase import DiscordBase
 from lib.config import config
 from typing import List
+import rcon
+from rcon.extended_commands import Rcon
 
 logger = logging.getLogger(__name__)
+
+rcon = Rcon()
 
 class Registration(commands.Cog, DiscordBase):
     def __init__(self, bot):
@@ -124,6 +128,25 @@ class Registration(commands.Cog, DiscordBase):
             logger.error(f"Unexpected error: {e}")
             self.in_Loop = False
             return []
+
+    async def query_Player_Database(self, query: str) -> List[str]:
+        try:
+            if len(query) > 1:       
+                payload = {"page_size": 25, "page": 1, "player_name": query}
+
+                result = await rcon.get_Player_History(payload)
+                players = result.get_Players_Name()
+
+                if players != None and len(players):
+                    return players[:25]
+                else:
+                    return None
+            else:
+                return None
+            
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return None
 
 async def setup(bot):
     await bot.add_cog(Registration(bot)) 
