@@ -11,8 +11,11 @@
         "registration": [{
             "enabled": false,
             "t17_discord_user_name": false,
+            "show_t17_number": false,
+            "t17_number_required": false,
             "name_format": "t17_first",
             "registration_webhook_url": "",
+            "clan_priority_roles": ["Admin", "Moderator", "Clan Leader"],
             "clans": {
                 "BAD": {
                     "hide_tag": true

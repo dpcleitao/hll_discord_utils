@@ -28,6 +28,7 @@ class Registration(commands.Cog, DiscordBase):
     @app_commands.describe(
         t17_name="Type to search your T17 name or enter your T17 ID directly",
         clan_tag="Your clan tag (optional, for Discord display)",
+        t17_number="Your T17 number (optional)",
         vote_reminders="Do you want in-game vote reminders?"
     )
     @app_commands.choices(vote_reminders=[
@@ -38,7 +39,8 @@ class Registration(commands.Cog, DiscordBase):
         self, 
         interaction: discord.Interaction, 
         t17_name: str, 
-        clan_tag: str = None, 
+        clan_tag: str = None,
+        t17_number: str = None,
         vote_reminders: app_commands.Choice[str] = None
     ):
         """Register or update T17 name"""
@@ -48,6 +50,27 @@ class Registration(commands.Cog, DiscordBase):
                 '''Something went wrong, please select your name from the\n'''
                 '''list and do not add or remove any characters,\n'''
                 '''after the selection.''', 
+                ephemeral=True
+            )
+            return
+
+        # Validate t17_number if provided
+        if t17_number:
+            # Remove # if user included it
+            t17_number = t17_number.lstrip('#')
+            
+            # Check if it's exactly 4 digits
+            if not re.fullmatch(r'\d{4}', t17_number):
+                await interaction.response.send_message(
+                    "T17 number must be exactly 4 digits (e.g., 1234).",
+                    ephemeral=True
+                )
+                return
+        
+        # Check if t17_number is required by config
+        if self.config.get("t17_number_required", False) and not t17_number:
+            await interaction.response.send_message(
+                "T17 number is required. Please provide your 4-digit T17 number.",
                 ephemeral=True
             )
             return
@@ -77,14 +100,28 @@ class Registration(commands.Cog, DiscordBase):
             # Update nickname if enabled
             if self.config["t17_discord_user_name"]:
                 try:
-                    # Get the player name from the autocomplete result
                     multi_array = await self.query_Player_Database(t17_name)
                     if multi_array and len(multi_array) > 0:
-                        display_name = multi_array[0][1]  # Use the actual player name
-                        if clan_tag:
+                        display_name = multi_array[0][1][0]  # Get first name
+                        formatted_name = display_name
+
+                        # Check if user has priority role for clan tag
+                        has_priority = any(role.name in self.config.get("clan_priority_roles", []) 
+                                         for role in interaction.user.roles)
+
+                        # Format name based on priority and settings
+                        if clan_tag and has_priority:
+                            # Priority user with clan tag
                             formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
-                        else:
-                            formatted_name = display_name[:32]
+                        elif self.config.get("show_t17_number", False) and t17_number:
+                            # Non-priority user with T17 number
+                            if clan_tag:
+                                formatted_name = f"{display_name[:20]}#{t17_number} [{clan_tag[:4]}]"
+                            else:
+                                formatted_name = f"{display_name[:27]}#{t17_number}"
+                        elif clan_tag:
+                            # Non-priority user with just clan tag
+                            formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
                         
                         # Check if the current nickname matches
                         current_nick = interaction.user.display_name

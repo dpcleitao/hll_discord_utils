@@ -20,7 +20,21 @@ class MainBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
-        super().__init__(command_prefix="/", intents=intents)
+        intents.guilds = True  # Need this for guild-related operations
+        
+        # Define default permissions the bot needs
+        permissions = discord.Permissions(
+            manage_nicknames=True,  # For updating nicknames
+            read_messages=True,     # For reading commands
+            send_messages=True,     # For responding to commands
+            use_slash_commands=True # For slash commands
+        )
+        
+        super().__init__(
+            command_prefix="/", 
+            intents=intents,
+            default_permissions=permissions
+        )
         self.shutdown_event = asyncio.Event()
 
     async def on_ready(self):
