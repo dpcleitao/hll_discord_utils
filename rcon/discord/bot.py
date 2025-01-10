@@ -27,7 +27,7 @@ class MainBot(commands.Bot):
             manage_nicknames=True,  # For updating nicknames
             read_messages=True,     # For reading commands
             send_messages=True,     # For responding to commands
-            use_slash_commands=True # For slash commands
+            use_application_commands=True  # This is the correct permission name for slash commands
         )
         
         super().__init__(
