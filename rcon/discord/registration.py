@@ -182,12 +182,20 @@ class Registration(commands.Cog, DiscordBase):
 
     async def query_Player_Database(self, query: str) -> List[tuple]:
         try:
+            logger.info(f"Querying database for player ID: {query}")
             payload = {"page_size": 25, "page": 1, "player_name": query}
             result = await rcon.get_Player_History(payload)
-            return result.get_Players_Name() if result else None
+            
+            if result:
+                players = result.get_Players_Name()
+                logger.info(f"Query result: {players}")
+                return players if players else None
+            else:
+                logger.error("No result from get_Player_History")
+                return None
             
         except Exception as e:
-            logger.error(f"Unexpected error in query: {e}")
+            logger.error(f"Error querying player database: {e}")
             return None
 
     async def send_registration_webhook(self, user, t17_name: str, clan_tag: str = None, vote_reminders: str = None):
