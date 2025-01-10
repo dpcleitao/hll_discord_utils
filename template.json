@@ -8,10 +8,22 @@
         "discord_token": "",
         "log_level": "INFO",
 
+        "registration": [{
+            "enabled": false,
+            "t17_discord_user_name": false,
+            "name_format": "t17_first",
+            "registration_webhook_url": "",
+            "clans": {
+                "BAD": {
+                    "hide_tag": true
+                }
+            }
+        }],
+
         "comfort_functions":[{
                 "enabled": false,
                 "dryrun": false
-            }],
+        }],
 
         "map_rotation":[{
                 "enabled": false,

@@ -16,6 +16,7 @@ Connect with us on Discord for feedback, troubleshooting, and update information
 
 - [Features](#features)
   - [Map Vote](#vote-map)
+  - [Registration](#registration)
   - [Adaptive Level Cap](#adaptive-level-cap)
   - [Server Balance](#server-balance)
   - [Server Status](#server-status)
@@ -37,6 +38,7 @@ Connect with us on Discord for feedback, troubleshooting, and update information
 All of the following features are stand-alone and can be used individually. If you only want to use one of the functions or only a subset, this is possible via the configuration.
 
 - [Map Vote](#vote-map)
+- [Registration](#registration)
 - [Adaptive Level Cap](#adaptive-level-cap)
 - [Server Balance](#server-balance)
 - [Server Status](#server-status)
@@ -77,6 +79,13 @@ The main reason for developing this tool set is to provide the map vote function
 
 [Jump to the top](#features)
 
+
+### Registration
+The registration system allows console players to link their T17 account with their Discord account:
+- Players can search and select their T17 name using autocomplete
+- Optional Discord nickname synchronization with T17 name
+- Webhook notifications for new registrations
+- Registered players won't receive in-game vote reminders if they select the option to not receive them (prevents duplicate notifications)
 
 ### Adaptive Level Cap
 
