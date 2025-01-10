@@ -187,12 +187,20 @@ class Registration(commands.Cog, DiscordBase):
             # If it's a T17 ID (32 hex characters)
             if bool(re.fullmatch(r"[0-9a-fA-F]{32}", query)):
                 # Use get_Player_History with the ID
-                payload = {"page_size": 1, "page": 1, "player_id": query}
+                payload = {
+                    "page_size": 1,
+                    "page": 1,
+                    "player_id": query,
+                    "steam_id_64": None,
+                    "name_contains": None
+                }
+                logger.info(f"Player history payload: {payload}")
                 result = await rcon.get_Player_History(payload)
                 if result:
                     players = result.get_Players_Name()
+                    logger.info(f"Player history response: {players}")
                     if players and len(players) > 0:
-                        logger.info(f"Found player by ID: {players[0][1]}")
+                        logger.info(f"Found player by ID: {players[0]}")
                         return players
                     else:
                         logger.error(f"No player found for ID: {query}")
