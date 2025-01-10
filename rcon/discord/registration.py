@@ -5,14 +5,12 @@ from datetime import datetime
 import logging
 import asyncio
 import re
-from rcon.discord.discordbase import DiscordBase
-from lib.config import config
 from typing import List
-import rcon
-from rcon.extended_commands import Rcon
+from rcon.discord.discordbase import DiscordBase
+from rcon.commands import Rcon
+from lib.config import config
 
 logger = logging.getLogger(__name__)
-
 rcon = Rcon()
 
 class Registration(commands.Cog, DiscordBase):
