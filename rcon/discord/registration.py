@@ -101,19 +101,19 @@ class Registration(commands.Cog, DiscordBase):
     @register.autocomplete("t17_name")
     async def name_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         try:
-            if len(current) < 5:  # Increased minimum length to 5
+            if len(current) < 5:  # Minimum 5 characters
                 return []
             
             logger.info(f"Search query: {current}")
-            multi_array = await rcon.get_Players_By_Name(current.replace(" ", "%"))
+            multi_array = await self.query_Player_Database(current.replace(" ", "%"))
             
             if not multi_array:
                 return []
             
             return [
                 app_commands.Choice(
-                    name=f"{player.name} (Last seen: {datetime.fromtimestamp(player.last_seen/1000).strftime('%Y-%m-%d')})"[:100],
-                    value=player.steam_id_64
+                    name=f"Last seen: {datetime.fromtimestamp(player[3]/1000).strftime('%Y-%m-%d')} - {player[1]}"[:100],
+                    value=player[0]
                 )
                 for player in multi_array[:25]
             ]
@@ -122,23 +122,14 @@ class Registration(commands.Cog, DiscordBase):
             logger.error(f"Unexpected error in autocomplete: {e}")
             return []
 
-    async def query_Player_Database(self, query: str) -> List[str]:
+    async def query_Player_Database(self, query: str) -> List[tuple]:
         try:
-            if len(query) > 1:       
-                payload = {"page_size": 25, "page": 1, "player_name": query}
-
-                result = await rcon.get_Player_History(payload)
-                players = result.get_Players_Name()
-
-                if players != None and len(players):
-                    return players[:25]
-                else:
-                    return None
-            else:
-                return None
+            payload = {"page_size": 25, "page": 1, "player_name": query}
+            result = await rcon.get_Player_History(payload)
+            return result.get_Players_Name() if result else None
             
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error in query: {e}")
             return None
 
 async def setup(bot):
