@@ -31,15 +31,15 @@ class RegistrationMetrics:
         self.last_registration_time = datetime.now()
 
 class Registration(commands.Cog, DiscordBase):
-    def __init__(self, bot, 
-                 database_service = None,
-                 webhook_service = None,
-                 player_service = None,
-                 config_service = None):
-        self.db = database_service or DefaultDatabaseService()
-        self.webhook = webhook_service or DefaultWebhookService()
-        self.player_service = player_service or DefaultPlayerService()
-        self.config = config_service or DefaultConfigService()
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+        self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook")
+        self.config = config.get("rcon", 0, "registration", 0)
+        
+        # Initialize database connection from DiscordBase
+        self.conn = sqlite3.connect('hll_rcon.db')
+        self.cursor = self.conn.cursor()
 
     @app_commands.command(
         name="register", 
