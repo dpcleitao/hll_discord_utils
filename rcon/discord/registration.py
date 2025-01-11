@@ -331,36 +331,45 @@ class Registration(commands.Cog, DiscordBase):
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         """Track nickname changes"""
-        if before.nick != after.nick and self.config.get("webhook_channel_id"):  # Only track nickname changes
-            try:
-                channel = self.bot.get_channel(int(self.config["webhook_channel_id"]))
-                if channel:
-                    embed = discord.Embed(
-                        title="👤 Manual Nickname Update",
-                        description="Nickname changed manually by user or admin",
-                        color=discord.Color.yellow(),  # Different color for manual changes
-                        timestamp=datetime.now()
-                    )
-                    
-                    embed.add_field(
-                        name="User", 
-                        value=f"{after.mention} ({after.id})\n"
-                              f"Original Name: `{before.nick or before.name}`", 
-                        inline=False
-                    )
-                    embed.add_field(
-                        name="New Nickname", 
-                        value=f"`{after.nick or after.name}`",
-                        inline=False
-                    )
-                    
-                    await channel.send(embed=embed)
-                    logger.info(f"Manual nickname change detected for {after.name}: {before.nick} -> {after.nick}")
-                else:
-                    logger.error(f"Could not find webhook channel with ID: {self.config['webhook_channel_id']}")
-                    
-            except Exception as e:
-                logger.error(f"Failed to send manual nickname update webhook: {e}")
+        # Skip if nicknames are the same or if webhook isn't configured
+        if before.nick == after.nick or not self.config.get("webhook_channel_id"):
+            return
+            
+        # Skip if the change was made by the bot
+        audit_logs = [entry async for entry in after.guild.audit_logs(limit=1, action=discord.AuditLogAction.member_update)]
+        if audit_logs and audit_logs[0].user.id == self.bot.user.id:
+            logger.info(f"Skipping webhook for bot-initiated nickname change: {after.name}")
+            return
+
+        try:
+            channel = self.bot.get_channel(int(self.config["webhook_channel_id"]))
+            if channel:
+                embed = discord.Embed(
+                    title="👤 Manual Nickname Update",
+                    description="Nickname changed manually by user or admin",
+                    color=discord.Color.yellow(),
+                    timestamp=datetime.now()
+                )
+                
+                embed.add_field(
+                    name="User", 
+                    value=f"{after.mention} ({after.id})\n"
+                          f"Original Name: `{before.nick or before.name}`", 
+                    inline=False
+                )
+                embed.add_field(
+                    name="New Nickname", 
+                    value=f"`{after.nick or after.name}`",
+                    inline=False
+                )
+                
+                await channel.send(embed=embed)
+                logger.info(f"Manual nickname change detected for {after.name}: {before.nick} -> {after.nick}")
+            else:
+                logger.error(f"Could not find webhook channel with ID: {self.config['webhook_channel_id']}")
+                
+        except Exception as e:
+            logger.error(f"Failed to send manual nickname update webhook: {e}")
 
     async def validate_inputs(self, t17_name: str, clan_tag: str = None, t17_number: str = None) -> tuple[bool, str]:
         """Validate all input parameters before processing"""
