@@ -9,14 +9,14 @@
         "log_level": "INFO",
 
         "registration": [{
-            "enabled": false,
-            "t17_discord_user_name": false,
-            "show_t17_number": false,
-            "t17_number_required": false,
-            "clan_tag_required": false,
-            "name_format": "t17_first",
-            "registration_webhook_url": "",
-            "clan_priority_roles": ["Admin", "Moderator", "Clan Leader"],
+            "enabled": true,
+            "t17_discord_user_name": true,
+            "show_t17_number": true,
+            "t17_number_required": true,
+            "clan_tag_required": true,
+            "registered_role_id": "1234567890",
+            "webhook_channel_id": "1234567890",
+            "clan_priority_roles": [],
             "clans": {
                 "BAD": {
                     "hide_tag": true

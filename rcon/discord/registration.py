@@ -149,6 +149,18 @@ class Registration(commands.Cog, DiscordBase):
                         logger.error(f"Error updating nickname: {e}")
                         success_message += "⚠️ Could not update nickname due to an error.\n"
 
+                # Try to assign the registered role
+                if registered_role_id := self.config.get("registered_role_id"):
+                    try:
+                        role = interaction.guild.get_role(int(registered_role_id))
+                        if role:
+                            await interaction.user.add_roles(role)
+                            logger.info(f"Assigned registered role to user: {interaction.user.name}")
+                        else:
+                            logger.error(f"Could not find registered role with ID: {registered_role_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to assign role: {e}")
+
                 # Try webhook notification
                 if self.webhook_url:
                     try:
@@ -249,26 +261,36 @@ class Registration(commands.Cog, DiscordBase):
             return None
 
     async def send_registration_webhook(self, user, t17_name: str, clan_tag: str = None, vote_reminders: str = None):
-        """Send webhook notification about new registration"""
-        if not self.webhook_url:
-            return
+        """Send webhook notification about new registration to specified channel"""
+        try:
+            if not (webhook_channel_id := self.config.get("webhook_channel_id")):
+                logger.info("No webhook channel configured, skipping notification")
+                return
 
-        async with aiohttp.ClientSession() as session:
-            webhook = discord.Webhook.from_url(
-                self.webhook_url,
-                session=session
+            channel = self.bot.get_channel(int(webhook_channel_id))
+            if not channel:
+                logger.error(f"Could not find webhook channel with ID: {webhook_channel_id}")
+                return
+
+            embed = discord.Embed(
+                title="New Registration",
+                color=discord.Color.green(),
+                timestamp=datetime.now()
             )
             
+            embed.add_field(name="User", value=f"{user.mention} ({user.id})", inline=False)
+            embed.add_field(name="T17 Name", value=t17_name, inline=True)
+            embed.add_field(name="Clan Tag", value=clan_tag if clan_tag else "None", inline=True)
+            embed.add_field(name="Vote Reminders", value=vote_reminders, inline=True)
+            
             try:
-                await webhook.send(
-                    f"New Registration:\n"
-                    f"User: {user.mention} ({user.id})\n"
-                    f"T17 Name: {t17_name}\n"
-                    f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
-                    f"Vote Reminders: {vote_reminders}"
-                )
+                await channel.send(embed=embed)
+                logger.info(f"Sent registration notification for user: {user.name}")
             except Exception as e:
-                logger.error(f"Webhook error: {e}")
+                logger.error(f"Failed to send webhook message: {e}")
+                
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
 
     @discord.ui.button(custom_id="copy_nickname")
     async def copy_nickname_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
