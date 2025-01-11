@@ -47,8 +47,8 @@ class Registration(commands.Cog, DiscordBase):
     )
     @app_commands.describe(
         t17_name="Type to search your T17 name or enter your T17 ID directly",
-        clan_tag="Your clan tag (optional, for Discord display)",
-        t17_number="Your T17 number (optional)",
+        clan_tag="Your clan tag (required if clan_tag_required is true)",
+        t17_number="Your T17 number (required if show_t17_number is true)",
         vote_reminders="Do you want in-game vote reminders?"
     )
     @app_commands.choices(vote_reminders=[
@@ -64,6 +64,36 @@ class Registration(commands.Cog, DiscordBase):
         vote_reminders: app_commands.Choice[str] = None
     ):
         """Register or update T17 name"""
+        # Check if registration is required
+        if not self.config.get("enabled", False):
+            await interaction.response.send_message(
+                "Registration is currently disabled.",
+                ephemeral=True
+            )
+            return
+
+        # Make T17 number required if show_t17_number is true
+        if self.config.get("show_t17_number", False) and not t17_number:
+            await interaction.response.send_message(
+                "T17 number is required when show_t17_number is enabled.",
+                ephemeral=True
+            )
+            return
+
+        # Make clan tag required if clan_tag_required is true
+        if self.config.get("clan_tag_required", False) and not clan_tag:
+            await interaction.response.send_message(
+                "Clan tag is required when clan_tag_required is enabled.",
+                ephemeral=True
+            )
+            return
+
+        # Check if clan should be hidden
+        if clan_tag and clan_tag.upper() in self.config.get("clans", {}):
+            clan_config = self.config["clans"][clan_tag.upper()]
+            if clan_config.get("hide_tag", False):
+                clan_tag = None  # Don't display the clan tag if hide_tag is true
+
         # verify that t17_name is a T17 ID
         if bool(re.fullmatch(r"[0-9a-fA-F]{32}", t17_name)) == False:
             await interaction.response.send_message(
@@ -139,12 +169,16 @@ class Registration(commands.Cog, DiscordBase):
                                          for role in interaction.user.roles)
 
                         # Format name based on priority and settings
-                        if clan_tag and has_priority:
-                            # Priority user with clan tag
+                        if clan_tag and has_priority and not (
+                            clan_tag.upper() in self.config.get("clans", {}) and 
+                            self.config["clans"][clan_tag.upper()].get("hide_tag", False)
+                        ):
                             formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
                         elif self.config.get("show_t17_number", False) and t17_number:
-                            # Non-priority user with T17 number
-                            if clan_tag:
+                            if clan_tag and not (
+                                clan_tag.upper() in self.config.get("clans", {}) and 
+                                self.config["clans"][clan_tag.upper()].get("hide_tag", False)
+                            ):
                                 formatted_name = f"{display_name[:20]}#{t17_number} [{clan_tag[:4]}]"
                             else:
                                 formatted_name = f"{display_name[:27]}#{t17_number}"
@@ -309,23 +343,22 @@ class Registration(commands.Cog, DiscordBase):
         if not self.webhook_url:
             return
 
-        webhook = discord.Webhook.from_url(
-            self.webhook_url,
-            session=aiohttp.ClientSession()
-        )
-        
-        try:
-            await webhook.send(
-                f"New Registration:\n"
-                f"User: {user.mention} ({user.id})\n"
-                f"T17 Name: {t17_name}\n"
-                f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
-                f"Vote Reminders: {vote_reminders}"
+        async with aiohttp.ClientSession() as session:
+            webhook = discord.Webhook.from_url(
+                self.webhook_url,
+                session=session
             )
-        except Exception as e:
-            logger.error(f"Webhook error: {e}")
-        finally:
-            await webhook.session.close()
+            
+            try:
+                await webhook.send(
+                    f"New Registration:\n"
+                    f"User: {user.mention} ({user.id})\n"
+                    f"T17 Name: {t17_name}\n"
+                    f"Clan Tag: {clan_tag if clan_tag else 'None'}\n"
+                    f"Vote Reminders: {vote_reminders}"
+                )
+            except Exception as e:
+                logger.error(f"Webhook error: {e}")
 
     @discord.ui.button(custom_id="copy_nickname")
     async def copy_nickname_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -339,22 +372,21 @@ class Registration(commands.Cog, DiscordBase):
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         """Track nickname changes"""
         if before.nick != after.nick and self.webhook_url:  # Only track nickname changes
-            webhook = discord.Webhook.from_url(
-                self.webhook_url,
-                session=aiohttp.ClientSession()
-            )
-            
-            try:
-                await webhook.send(
-                    f"Nickname Update:\n"
-                    f"User: {after.mention} ({after.id})\n"
-                    f"Old Nickname: {before.nick or before.name}\n"
-                    f"New Nickname: {after.nick or after.name}"
+            async with aiohttp.ClientSession() as session:
+                webhook = discord.Webhook.from_url(
+                    self.webhook_url,
+                    session=session
                 )
-            except Exception as e:
-                logger.error(f"Webhook error: {e}")
-            finally:
-                await webhook.session.close()
+                
+                try:
+                    await webhook.send(
+                        f"Nickname Update:\n"
+                        f"User: {after.mention} ({after.id})\n"
+                        f"Old Nickname: {before.nick or before.name}\n"
+                        f"New Nickname: {after.nick or after.name}"
+                    )
+                except Exception as e:
+                    logger.error(f"Webhook error: {e}")
 
     async def validate_inputs(self, t17_name: str, clan_tag: str = None, t17_number: str = None) -> tuple[bool, str]:
         """Validate all input parameters before processing"""
