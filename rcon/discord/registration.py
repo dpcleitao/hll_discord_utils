@@ -70,7 +70,10 @@ class Registration(commands.Cog, DiscordBase):
         try:
             await interaction.response.defer(ephemeral=True)
             logger.info(f"Starting registration for user: {interaction.user.name} ({interaction.user.id})")
-
+            
+            # Store original name for webhook
+            original_name = interaction.user.display_name
+            
             # Check if registration is enabled
             if not self.config.get("enabled", False):
                 await interaction.followup.send(
@@ -172,11 +175,18 @@ class Registration(commands.Cog, DiscordBase):
                         channel = self.bot.get_channel(int(webhook_channel_id))
                         if channel:
                             embed = discord.Embed(
-                                title="New Registration",
+                                title="🤖 New Registration",
+                                description="Nickname updated via registration command",
                                 color=discord.Color.green(),
                                 timestamp=datetime.now()
                             )
-                            embed.add_field(name="User", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
+                            
+                            embed.add_field(
+                                name="User", 
+                                value=f"{interaction.user.mention} ({interaction.user.id})\n"
+                                      f"Original Name: `{original_name}`", 
+                                inline=False
+                            )
                             embed.add_field(name="T17 Name", value=t17_name, inline=True)
                             embed.add_field(name="Clan Tag", value=clan_tag if clan_tag else "None", inline=True)
                             embed.add_field(name="Vote Reminders", value=vote_reminders.value if vote_reminders else "No", inline=True)
@@ -321,22 +331,36 @@ class Registration(commands.Cog, DiscordBase):
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         """Track nickname changes"""
-        if before.nick != after.nick and self.webhook_url:  # Only track nickname changes
-            async with aiohttp.ClientSession() as session:
-                webhook = discord.Webhook.from_url(
-                    self.webhook_url,
-                    session=session
-                )
-                
-                try:
-                    await webhook.send(
-                        f"Nickname Update:\n"
-                        f"User: {after.mention} ({after.id})\n"
-                        f"Old Nickname: {before.nick or before.name}\n"
-                        f"New Nickname: {after.nick or after.name}"
+        if before.nick != after.nick and self.config.get("webhook_channel_id"):  # Only track nickname changes
+            try:
+                channel = self.bot.get_channel(int(self.config["webhook_channel_id"]))
+                if channel:
+                    embed = discord.Embed(
+                        title="👤 Manual Nickname Update",
+                        description="Nickname changed manually by user or admin",
+                        color=discord.Color.yellow(),  # Different color for manual changes
+                        timestamp=datetime.now()
                     )
-                except Exception as e:
-                    logger.error(f"Webhook error: {e}")
+                    
+                    embed.add_field(
+                        name="User", 
+                        value=f"{after.mention} ({after.id})\n"
+                              f"Original Name: `{before.nick or before.name}`", 
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="New Nickname", 
+                        value=f"`{after.nick or after.name}`",
+                        inline=False
+                    )
+                    
+                    await channel.send(embed=embed)
+                    logger.info(f"Manual nickname change detected for {after.name}: {before.nick} -> {after.nick}")
+                else:
+                    logger.error(f"Could not find webhook channel with ID: {self.config['webhook_channel_id']}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to send manual nickname update webhook: {e}")
 
     async def validate_inputs(self, t17_name: str, clan_tag: str = None, t17_number: str = None) -> tuple[bool, str]:
         """Validate all input parameters before processing"""
