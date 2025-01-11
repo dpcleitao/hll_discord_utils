@@ -16,6 +16,7 @@
             "clan_tag_required": true,
             "registered_role_id": "1234567890",
             "webhook_channel_id": "1234567890",
+            "name_format": "t17_first",
             "clan_priority_roles": [],
             "clans": {
                 "BAD": {
