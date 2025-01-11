@@ -34,12 +34,15 @@ class Registration(commands.Cog, DiscordBase):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
+        logger.info("Initializing Registration cog")
         self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook")
         self.config = config.get("rcon", 0, "registration", 0)
+        logger.info(f"Registration config loaded: {self.config}")
         
         # Initialize database connection from DiscordBase
         self.conn = sqlite3.connect('hll_discord_helper.db')
         self.cursor = self.conn.cursor()
+        logger.info("Database connection established")
 
     @app_commands.command(
         name="register", 
@@ -281,15 +284,22 @@ class Registration(commands.Cog, DiscordBase):
     @register.autocomplete("t17_name")
     async def name_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         try:
-            if len(current) < 5:  # Minimum 5 characters
+            logger.info(f"Autocomplete triggered with input: {current}")
+            
+            if len(current) < 3:  # Changed from 5 to 3 characters
+                logger.info("Input too short, returning empty list")
                 return []
             
+            logger.info("Querying player database...")
             multi_array = await self.query_Player_Database(current.replace(" ", "%"))
             
             if not multi_array:
+                logger.info("No results found from database")
                 return []
             
-            return [
+            logger.info(f"Found {len(multi_array)} results")
+            
+            choices = [
                 app_commands.Choice(
                     name=f"Last seen: {datetime.fromtimestamp(player[3]/1000).strftime('%Y-%m-%d')} - {player[1]}"[:100],
                     value=player[0]
@@ -297,17 +307,20 @@ class Registration(commands.Cog, DiscordBase):
                 for player in multi_array[:25]
             ]
             
+            logger.info(f"Returning {len(choices)} choices")
+            return choices
+            
         except Exception as e:
-            logger.error(f"Unexpected error in autocomplete: {e}")
+            logger.error(f"Autocomplete error: {e}", exc_info=True)
             return []
 
     async def query_Player_Database(self, query: str) -> List[tuple]:
         try:
-            logger.info(f"Querying database for: {query}")
+            logger.info(f"Database query started for: {query}")
             
             # If it's a T17 ID (32 hex characters)
             if bool(re.fullmatch(r"[0-9a-fA-F]{32}", query)):
-                # Use get_Player_History with the ID
+                logger.info("Query is a T17 ID")
                 payload = {
                     "page_size": 1,
                     "page": 1,
@@ -315,34 +328,27 @@ class Registration(commands.Cog, DiscordBase):
                     "steam_id_64": None,
                     "name_contains": None
                 }
-                logger.info(f"Player history payload: {payload}")
-                result = await rcon.get_Player_History(payload)
-                if result:
-                    players = result.get_Players_Name()
-                    logger.info(f"Player history response: {players}")
-                    if players and len(players) > 0:
-                        logger.info(f"Found player by ID: {players[0]}")
-                        return players
-                    else:
-                        logger.error(f"No player found for ID: {query}")
-                        return None
-                else:
-                    logger.error("No result from get_Player_History")
-                    return None
             else:
-                # Search by name
-                payload = {"page_size": 25, "page": 1, "player_name": query}
-                result = await rcon.get_Player_History(payload)
-                if result:
-                    players = result.get_Players_Name()
-                    logger.info(f"Search results: {players}")
-                    return players
-                else:
-                    logger.error("No results from name search")
-                    return None
+                logger.info("Query is a player name")
+                payload = {
+                    "page_size": 25,
+                    "page": 1,
+                    "player_name": query
+                }
+            
+            logger.info(f"Sending RCON request with payload: {payload}")
+            result = await rcon.get_Player_History(payload)
+            
+            if result:
+                players = result.get_Players_Name()
+                logger.info(f"Got {len(players) if players else 0} results")
+                return players
+            else:
+                logger.error("No result from get_Player_History")
+                return None
             
         except Exception as e:
-            logger.error(f"Error querying player database: {e}")
+            logger.error(f"Database query error: {e}", exc_info=True)
             return None
 
     async def send_registration_webhook(self, user, t17_name: str, clan_tag: str = None, vote_reminders: str = None):
@@ -466,4 +472,11 @@ class Registration(commands.Cog, DiscordBase):
         return True, ""
 
 async def setup(bot):
-    await bot.add_cog(Registration(bot)) 
+    logger.info("Setting up Registration cog")
+    await bot.add_cog(Registration(bot))
+    logger.info("Registration cog added")
+    try:
+        await bot.tree.sync()
+        logger.info("Command tree synced successfully")
+    except Exception as e:
+        logger.error(f"Failed to sync command tree: {e}") 
