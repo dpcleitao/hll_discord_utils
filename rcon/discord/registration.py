@@ -10,16 +10,36 @@ from rcon.discord.discordbase import DiscordBase
 import rcon.rcon as rcon
 from lib.config import config
 import aiohttp
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
+class RegistrationMetrics:
+    def __init__(self):
+        self.successful_registrations = 0
+        self.failed_registrations = 0
+        self.nickname_updates = 0
+        self.nickname_failures = 0
+        self.last_error = None
+        self.last_registration_time = None
+        
+    def log_registration_attempt(self, success: bool):
+        if success:
+            self.successful_registrations += 1
+        else:
+            self.failed_registrations += 1
+        self.last_registration_time = datetime.now()
+
 class Registration(commands.Cog, DiscordBase):
-    def __init__(self, bot):
-        super().__init__()
-        self.bot = bot
-        self.config = config.get("rcon", 0, "registration", 0)
-        self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook")
-        self.in_Loop = False
+    def __init__(self, bot, 
+                 database_service = None,
+                 webhook_service = None,
+                 player_service = None,
+                 config_service = None):
+        self.db = database_service or DefaultDatabaseService()
+        self.webhook = webhook_service or DefaultWebhookService()
+        self.player_service = player_service or DefaultPlayerService()
+        self.config = config_service or DefaultConfigService()
 
     @app_commands.command(
         name="register", 
@@ -97,6 +117,15 @@ class Registration(commands.Cog, DiscordBase):
                 )
             self.conn.commit()
 
+            # After database update but before nickname changes
+            if self.webhook_url:
+                await self.send_registration_webhook(
+                    interaction.user,
+                    display_name,
+                    clan_tag,
+                    vote_reminders.value if vote_reminders else 'No'
+                )
+
             # Update nickname if enabled
             if self.config["t17_discord_user_name"]:
                 try:
@@ -168,13 +197,27 @@ class Registration(commands.Cog, DiscordBase):
                             ephemeral=True
                         )
                 except discord.Forbidden:
-                    await interaction.response.send_message(
-                        "Unable to update your Discord nickname. Please contact a Discord admin to grant the bot necessary permissions.",
+                    copy_button = discord.ui.Button(
+                        label="Copy Nickname",
+                        style=discord.ButtonStyle.primary,
+                        custom_id="copy_nickname"
+                    )
+                    
+                    view = discord.ui.View()
+                    view.add_item(copy_button)
+                    
+                    await interaction.followup.send(
+                        f"✅ Registration successful!\n\n"
+                        f"⚠️ Could not automatically update your nickname due to Discord's role hierarchy.\n"
+                        f"**Your new nickname should be:**\n"
+                        f"```\n{formatted_name}\n```\n"
+                        f"Click the button below to copy, then paste in Server Settings > Edit Server Profile > Nickname",
+                        view=view,
                         ephemeral=True
                     )
-                    logger.warning(f"Bot lacks permission to change nickname for user {interaction.user.id}")
+                    logger.warning(f"Bot lacks permission to change nickname for user {interaction.user.id} (role hierarchy)")
                 except Exception as e:
-                    logger.error(f"Failed to update nickname: {e}")
+                    logger.error(f"Error updating nickname: {e}")
                     await interaction.response.send_message(
                         "Failed to update nickname. Your registration is still saved.",
                         ephemeral=True
@@ -283,6 +326,105 @@ class Registration(commands.Cog, DiscordBase):
             logger.error(f"Webhook error: {e}")
         finally:
             await webhook.session.close()
+
+    @discord.ui.button(custom_id="copy_nickname")
+    async def copy_nickname_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Get the formatted name from the original message content
+        message_content = interaction.message.content
+        # Extract the name from between the code block
+        formatted_name = message_content.split('```')[1].strip()
+        await interaction.response.send_message(f"Here's your nickname to copy: {formatted_name}", ephemeral=True)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Track nickname changes"""
+        if before.nick != after.nick and self.webhook_url:  # Only track nickname changes
+            webhook = discord.Webhook.from_url(
+                self.webhook_url,
+                session=aiohttp.ClientSession()
+            )
+            
+            try:
+                await webhook.send(
+                    f"Nickname Update:\n"
+                    f"User: {after.mention} ({after.id})\n"
+                    f"Old Nickname: {before.nick or before.name}\n"
+                    f"New Nickname: {after.nick or after.name}"
+                )
+            except Exception as e:
+                logger.error(f"Webhook error: {e}")
+            finally:
+                await webhook.session.close()
+
+    async def validate_inputs(self, t17_name: str, clan_tag: str = None, t17_number: str = None) -> tuple[bool, str]:
+        """Validate all input parameters before processing"""
+        if not re.fullmatch(r"[0-9a-fA-F]{32}", t17_name):
+            return False, "Invalid T17 ID format"
+            
+        if clan_tag and (len(clan_tag) > 4 or not clan_tag.isalnum()):
+            return False, "Clan tag must be 1-4 alphanumeric characters"
+            
+        if t17_number:
+            t17_number = t17_number.lstrip('#')
+            if not re.fullmatch(r'\d{4}', t17_number):
+                return False, "T17 number must be exactly 4 digits"
+                
+        return True, ""
+
+    async def ensure_database_connection(self):
+        """Ensure database connection is active and recover if needed"""
+        try:
+            self.cursor.execute("SELECT 1")
+        except (sqlite3.OperationalError, sqlite3.ProgrammingError):
+            logger.warning("Database connection lost, attempting reconnection")
+            await self.initialize_database_connection()
+
+    async def update_registration(self, user_data: dict) -> bool:
+        """Handle registration database operations with proper transaction management"""
+        try:
+            self.conn.execute("BEGIN TRANSACTION")
+            
+            # Update existing registration
+            self.cursor.execute('''
+                UPDATE voter_register 
+                SET votreg_dis_user = ?, votreg_dis_nick = ?, votreg_t17_id = ?
+                WHERE votreg_dis_user_id = ?
+            ''', (user_data['name'], user_data['nick'], user_data['t17_id'], user_data['id']))
+            
+            if self.cursor.rowcount == 0:
+                # Insert new registration
+                self.cursor.execute('''
+                    INSERT INTO voter_register (
+                        votreg_dis_user, votreg_dis_user_id, votreg_dis_nick, 
+                        votreg_t17_id, votereg_ask_reg_cnt, votereg_not_ingame_cnt
+                    ) VALUES (?, ?, ?, ?, 0, 0)
+                ''', (user_data['name'], user_data['id'], user_data['nick'], user_data['t17_id']))
+            
+            self.conn.commit()
+            return True
+            
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"Database operation failed: {e}")
+            return False
+
+    def validate_configuration(self) -> tuple[bool, str]:
+        """Validate all required configuration settings"""
+        required_settings = [
+            ("t17_discord_user_name", bool),
+            ("show_t17_number", bool),
+            ("t17_number_required", bool),
+            ("clan_priority_roles", list)
+        ]
+        
+        for setting, expected_type in required_settings:
+            value = self.config.get(setting)
+            if value is None:
+                return False, f"Missing required setting: {setting}"
+            if not isinstance(value, expected_type):
+                return False, f"Invalid type for {setting}: expected {expected_type}"
+                
+        return True, ""
 
 async def setup(bot):
     await bot.add_cog(Registration(bot)) 
