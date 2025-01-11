@@ -38,7 +38,7 @@ class Registration(commands.Cog, DiscordBase):
         self.config = config.get("rcon", 0, "registration", 0)
         
         # Initialize database connection from DiscordBase
-        self.conn = sqlite3.connect('hll_rcon.db')
+        self.conn = sqlite3.connect('hll_discord_helper.db')
         self.cursor = self.conn.cursor()
 
     @app_commands.command(
