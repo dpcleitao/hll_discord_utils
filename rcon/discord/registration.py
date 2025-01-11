@@ -165,8 +165,14 @@ class Registration(commands.Cog, DiscordBase):
                         formatted_name = display_name
 
                         # Check if user has priority role for clan tag
-                        has_priority = any(role.name in self.config.get("clan_priority_roles", []) 
-                                         for role in interaction.user.roles)
+                        has_priority = False
+                        priority_roles = self.config.get("clan_priority_roles", [])
+                        if priority_roles:  # Only check if there are priority roles defined
+                            has_priority = any(role.name in priority_roles 
+                                             for role in interaction.user.roles)
+                        else:
+                            # If no priority roles defined, everyone can use clan tags
+                            has_priority = True
 
                         # Format name based on priority and settings
                         if clan_tag and has_priority and not (
