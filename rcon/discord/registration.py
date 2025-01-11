@@ -284,7 +284,6 @@ class Registration(commands.Cog, DiscordBase):
             if len(current) < 5:  # Minimum 5 characters
                 return []
             
-            logger.info(f"Search query: {current}")
             multi_array = await self.query_Player_Database(current.replace(" ", "%"))
             
             if not multi_array:
