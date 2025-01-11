@@ -68,8 +68,8 @@ class Registration(commands.Cog, DiscordBase):
     ):
         """Register or update T17 name"""
         try:
-            # Initial response to prevent timeout
             await interaction.response.defer(ephemeral=True)
+            logger.info(f"Starting registration for user: {interaction.user.name} ({interaction.user.id})")
 
             # Check if registration is enabled
             if not self.config.get("enabled", False):
@@ -115,7 +115,7 @@ class Registration(commands.Cog, DiscordBase):
                       str(t17_name), 0, 0, int(interaction.user.id)))
                 
                 if self.cursor.rowcount == 0:
-                    # If no rows were updated, insert new registration
+                    logger.info(f"Creating new registration for user: {interaction.user.name}")
                     self.insert_Voter_Registration(
                         discord_user=interaction.user.name,
                         discord_user_id=interaction.user.id,
@@ -124,6 +124,8 @@ class Registration(commands.Cog, DiscordBase):
                         register_cnt=0,
                         not_ingame_cnt=0
                     )
+                else:
+                    logger.info(f"Updated existing registration for user: {interaction.user.name}")
                 self.conn.commit()
                 
                 success_message = "✅ Registration successful!\n\n"
@@ -136,17 +138,20 @@ class Registration(commands.Cog, DiscordBase):
                             formatted_name = self.format_nickname(
                                 multi_array[0][1][0], clan_tag, t17_number, interaction.user
                             )
+                            logger.info(f"Current nickname: {interaction.user.display_name}, Desired nickname: {formatted_name}")
                             try:
                                 await interaction.user.edit(nick=formatted_name)
+                                logger.info(f"Successfully updated nickname for {interaction.user.name} to: {formatted_name}")
                                 success_message += f"Nickname updated to: {formatted_name}\n"
                             except discord.Forbidden:
+                                logger.warning(f"Missing permissions to update nickname for {interaction.user.name}")
                                 success_message += (
                                     f"⚠️ Could not automatically update your nickname.\n"
                                     f"Please manually set your nickname to:\n"
                                     f"```\n{formatted_name}\n```\n"
                                 )
                     except Exception as e:
-                        logger.error(f"Error updating nickname: {e}")
+                        logger.error(f"Error updating nickname for {interaction.user.name}: {e}")
                         success_message += "⚠️ Could not update nickname due to an error.\n"
 
                 # Try to assign the registered role
@@ -155,33 +160,46 @@ class Registration(commands.Cog, DiscordBase):
                         role = interaction.guild.get_role(int(registered_role_id))
                         if role:
                             await interaction.user.add_roles(role)
-                            logger.info(f"Assigned registered role to user: {interaction.user.name}")
+                            logger.info(f"Successfully assigned registered role to: {interaction.user.name}")
                         else:
                             logger.error(f"Could not find registered role with ID: {registered_role_id}")
                     except Exception as e:
-                        logger.error(f"Failed to assign role: {e}")
+                        logger.error(f"Failed to assign role to {interaction.user.name}: {e}")
 
                 # Try webhook notification
-                if self.webhook_url:
+                if webhook_channel_id := self.config.get("webhook_channel_id"):
                     try:
-                        await self.send_registration_webhook(
-                            interaction.user, t17_name, clan_tag,
-                            vote_reminders.value if vote_reminders else 'No'
-                        )
+                        channel = self.bot.get_channel(int(webhook_channel_id))
+                        if channel:
+                            embed = discord.Embed(
+                                title="New Registration",
+                                color=discord.Color.green(),
+                                timestamp=datetime.now()
+                            )
+                            embed.add_field(name="User", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
+                            embed.add_field(name="T17 Name", value=t17_name, inline=True)
+                            embed.add_field(name="Clan Tag", value=clan_tag if clan_tag else "None", inline=True)
+                            embed.add_field(name="Vote Reminders", value=vote_reminders.value if vote_reminders else "No", inline=True)
+                            
+                            await channel.send(embed=embed)
+                            logger.info(f"Sent registration webhook notification for: {interaction.user.name}")
+                        else:
+                            logger.error(f"Could not find webhook channel with ID: {webhook_channel_id}")
                     except Exception as e:
-                        logger.error(f"Webhook notification failed: {e}")
+                        logger.error(f"Failed to send webhook for {interaction.user.name}: {e}")
 
                 await interaction.followup.send(success_message, ephemeral=True)
+                logger.info(f"Completed registration process for: {interaction.user.name}")
 
             except Exception as e:
-                logger.error(f"Database registration error: {e}")
+                logger.error(f"Database registration error for {interaction.user.name}: {e}")
                 await interaction.followup.send(
                     "Failed to complete registration. Please try again later.",
                     ephemeral=True
                 )
 
         except Exception as e:
-            logger.error(f"Registration command error: {e}")
+            logger.error(f"Registration command error for {interaction.user.name}: {e}")
             try:
                 await interaction.followup.send(
                     "An error occurred. Please try again later.",
