@@ -73,7 +73,7 @@ class Registration(commands.Cog, DiscordBase):
 
             # Check if registration is enabled
             if not self.config.get("enabled", False):
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "Registration is currently disabled.",
                     ephemeral=True
                 )
@@ -81,7 +81,7 @@ class Registration(commands.Cog, DiscordBase):
 
             # Make T17 number required if show_t17_number is true
             if self.config.get("show_t17_number", False) and not t17_number:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "T17 number is required when show_t17_number is enabled.",
                     ephemeral=True
                 )
@@ -89,44 +89,21 @@ class Registration(commands.Cog, DiscordBase):
 
             # Make clan tag required if clan_tag_required is true
             if self.config.get("clan_tag_required", False) and not clan_tag:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "Clan tag is required when clan_tag_required is enabled.",
                     ephemeral=True
                 )
                 return
 
             # verify that t17_name is a T17 ID
-            if bool(re.fullmatch(r"[0-9a-fA-F]{32}", t17_name)) == False:
-                await interaction.response.send_message(
-                    '''Something went wrong, please select your name from the\n'''
-                    '''list and do not add or remove any characters,\n'''
-                    '''after the selection.''', 
+            if not re.fullmatch(r"[0-9a-fA-F]{32}", t17_name):
+                await interaction.followup.send(
+                    "Please select your name from the list and do not modify it.",
                     ephemeral=True
                 )
                 return
 
-            # Validate t17_number if provided
-            if t17_number:
-                # Remove # if user included it
-                t17_number = t17_number.lstrip('#')
-                
-                # Check if it's exactly 4 digits
-                if not re.fullmatch(r'\d{4}', t17_number):
-                    await interaction.response.send_message(
-                        "T17 number must be exactly 4 digits (e.g., 1234).",
-                        ephemeral=True
-                    )
-                    return
-            
-            # Check if t17_number is required by config
-            if self.config.get("t17_number_required", False) and not t17_number:
-                await interaction.response.send_message(
-                    "T17 number is required. Please provide your 4-digit T17 number.",
-                    ephemeral=True
-                )
-                return
-
-            # Database registration first - this is the most important part
+            # Database registration
             try:
                 # Try to update existing registration first
                 self.cursor.execute('''
@@ -149,11 +126,10 @@ class Registration(commands.Cog, DiscordBase):
                     )
                 self.conn.commit()
                 
-                # Registration successful - now try optional features
                 success_message = "✅ Registration successful!\n\n"
                 
                 # Try to update nickname if enabled
-                if self.config["t17_discord_user_name"]:
+                if self.config.get("t17_discord_user_name", False):
                     try:
                         multi_array = await self.query_Player_Database(t17_name)
                         if multi_array and len(multi_array) > 0:
@@ -169,31 +145,29 @@ class Registration(commands.Cog, DiscordBase):
                                     f"Please manually set your nickname to:\n"
                                     f"```\n{formatted_name}\n```\n"
                                 )
-                
-                # Try webhook notification - don't let it affect registration
-                try:
-                    if self.webhook_url:
+                    except Exception as e:
+                        logger.error(f"Error updating nickname: {e}")
+                        success_message += "⚠️ Could not update nickname due to an error.\n"
+
+                # Try webhook notification
+                if self.webhook_url:
+                    try:
                         await self.send_registration_webhook(
                             interaction.user, t17_name, clan_tag,
                             vote_reminders.value if vote_reminders else 'No'
                         )
-                except Exception as e:
-                    logger.error(f"Webhook notification failed: {e}")
-                    # Don't let webhook failure affect the user experience
-                
-                # Send final success message
-                await interaction.followup.send(
-                    success_message,
-                    ephemeral=True
-                )
-                
+                    except Exception as e:
+                        logger.error(f"Webhook notification failed: {e}")
+
+                await interaction.followup.send(success_message, ephemeral=True)
+
             except Exception as e:
                 logger.error(f"Database registration error: {e}")
                 await interaction.followup.send(
                     "Failed to complete registration. Please try again later.",
                     ephemeral=True
                 )
-                
+
         except Exception as e:
             logger.error(f"Registration command error: {e}")
             try:
