@@ -368,6 +368,38 @@ class Registration(commands.Cog, DiscordBase):
                 
         return True, ""
 
+    def format_nickname(self, display_name: str, clan_tag: str = None, t17_number: str = None, user: discord.Member = None) -> str:
+        """Format the nickname according to settings and permissions"""
+        formatted_name = display_name
+
+        # Check if user has priority role for clan tag
+        has_priority = False
+        if user and self.config.get("clan_priority_roles"):
+            has_priority = any(role.name in self.config.get("clan_priority_roles", []) 
+                             for role in user.roles)
+
+        # Check if clan tag should be hidden
+        show_clan_tag = True
+        if clan_tag and clan_tag.upper() in self.config.get("clans", {}):
+            if self.config["clans"][clan_tag.upper()].get("hide_tag", False):
+                show_clan_tag = False
+
+        # Format name based on priority and settings
+        if clan_tag and has_priority and show_clan_tag:
+            # Priority user with clan tag
+            formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
+        elif self.config.get("show_t17_number", False) and t17_number:
+            # Non-priority user with T17 number
+            if clan_tag and show_clan_tag:
+                formatted_name = f"{display_name[:20]}#{t17_number} [{clan_tag[:4]}]"
+            else:
+                formatted_name = f"{display_name[:27]}#{t17_number}"
+        elif clan_tag and show_clan_tag:
+            # Non-priority user with just clan tag
+            formatted_name = f"{display_name[:25]} [{clan_tag[:4]}]"
+
+        return formatted_name
+
 async def setup(bot):
     logger.info("Setting up Registration cog")
     await bot.add_cog(Registration(bot))
