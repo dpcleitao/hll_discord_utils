@@ -759,4 +759,5 @@ class VoteMap(commands.Cog, DiscordBase):
 
     async def check_registration(self, user_id: int) -> bool:
         """Check if user is registered using the Registration system"""
-        return bool(self.select_T17_Voter_Registration(user_id))
+        reg_info = self.get_User_Registration(user_id)
+        return bool(reg_info)

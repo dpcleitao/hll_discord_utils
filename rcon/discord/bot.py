@@ -20,12 +20,7 @@ class MainBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
-        intents.guilds = True
-        
-        super().__init__(
-            command_prefix="/", 
-            intents=intents
-        )
+        super().__init__(command_prefix="/", intents=intents)
         self.shutdown_event = asyncio.Event()
 
     async def on_ready(self):
@@ -95,3 +90,8 @@ def shutdown_bot():
 
     bot.shutdown_bot()
     bot_thread.join()
+
+async def setup_hook(bot):
+    server_config = config.get("rcon")[0]  # Get first server config
+    if server_config.get("registration", [{}])[0].get("enabled", False):
+        await bot.load_extension("rcon.discord.registration")

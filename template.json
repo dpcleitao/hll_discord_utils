@@ -9,22 +9,14 @@
         "log_level": "INFO",
 
         "registration": [{
-            "enabled": true,
-            "t17_discord_user_name": true,
-            "show_t17_number": true,
-            "t17_number_required": true,
-            "clan_tag_required": true,
-            "registered_role_id": "1234567890",
-            "webhook_channel_id": "1234567890",
-            "name_format": "t17_first",
-            "clan_priority_roles": [],
-            "clans": {
-                "BAD": {
-                    "hide_tag": true
-                }
-            }
+            "webhook_channel_id": null,
+            "update_nickname": true,
+            "nickname_format": "simple",
+            "clan_position": "suffix",
+            "hidden_clan_tags": ["BAD", "TOXIC"],
+            "_comment": "nickname_format options: 'simple' (T17 name only), 't17' (with T17 number), 'clan' (with clan tag)",
+            "_comment2": "clan_position options: 'prefix' ([TAG] Name) or 'suffix' (Name [TAG])"
         }],
-
         "comfort_functions":[{
                 "enabled": false,
                 "dryrun": false
@@ -33,19 +25,19 @@
         "map_rotation":[{
                 "enabled": false,
                 "webhook": ""
-            }],
+        }],
 
         "server_status": [{
                 "enabled": false,
                 "webhook": ""
-            }],
+        }],
 
         "server_balance": [{
                 "enabled": false,
                 "level_categories": [10, 25, 50, 100, 150, 200, 250],
                 "combat_weights": [0.1, 0.25, 0.25, 0.5, 1, 1, 1, 1.25],
                 "webhook": ""
-            }],
+        }],
         "auto_level":[{
                 "enabled": false,
                 "dryrun": false,
@@ -54,7 +46,7 @@
                 "player_count": 60,
                 "levelbug_enabled": true,
                 "kick_message": "Your level is below {min_level} or you don't own a VIP seat. This server has an adaptive level cap."
-            }],
+        }],
         "map_vote": [{
                 "enabled": false,
                 "dryrun": false,
@@ -75,6 +67,6 @@
                     "blacklist_maps":[],
                     "exclude_played_maps": 0
                 }]
-            }]
+        }]
     }]
 }
