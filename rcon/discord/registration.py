@@ -147,12 +147,24 @@ class Registration(commands.Cog, DiscordBase):
 
     @register.autocomplete("t17_name")
     async def name_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """Autocomplete for T17 name search"""
         try:
             if len(current) < 3:
                 return []
             
+            # Query both database and RCON
             players = await self.query_Player_Database(current.replace(" ", "%"))
-            return [app_commands.Choice(name=p, value=p) for p in (players or [])]
+            
+            # Convert to Discord choices
+            choices = []
+            if players:
+                choices = [
+                    app_commands.Choice(name=player, value=player) 
+                    for player in players
+                ][:25]  # Discord limits to 25 choices
+            
+            logger.debug(f"Autocomplete found {len(choices)} matches for '{current}'")
+            return choices
             
         except Exception as e:
             logger.error(f"Autocomplete error: {e}")
