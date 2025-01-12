@@ -253,3 +253,34 @@ class DiscordBase:
         except sqlite3.Error as e:
             logger.error(f"Database error in update_Key_Value: {e}")
             return False
+
+    def insert_Balance(self, timestamp, axis_level, allied_level, axis_distribution, allied_distribution):
+        """Insert balance data into database"""
+        try:
+            with self.conn:
+                self.cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS balance (
+                        timestamp INTEGER PRIMARY KEY,
+                        axis_level REAL,
+                        allied_level REAL,
+                        axis_distribution TEXT,
+                        allied_distribution TEXT
+                    )
+                ''')
+                
+                self.cursor.execute('''
+                    INSERT INTO balance (
+                        timestamp, axis_level, allied_level, 
+                        axis_distribution, allied_distribution
+                    ) VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    timestamp, 
+                    axis_level, 
+                    allied_level, 
+                    ','.join(map(str, axis_distribution)), 
+                    ','.join(map(str, allied_distribution))
+                ))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in insert_Balance: {e}")
+            return False
