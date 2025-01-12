@@ -436,3 +436,18 @@ class DiscordBase:
         except sqlite3.Error as e:
             logger.error(f"Database error in get_User_Registration: {e}")
             return None
+
+    def search_Players(self, query: str) -> list:
+        """Search for players in voter register"""
+        try:
+            self.cursor.execute('''
+                SELECT DISTINCT votreg_t17_id 
+                FROM voter_register 
+                WHERE votreg_t17_id LIKE ? 
+                LIMIT 25
+            ''', (f'%{query}%',))
+            results = self.cursor.fetchall()
+            return [r[0] for r in results] if results else []
+        except sqlite3.Error as e:
+            logger.error(f"Database error in search_Players: {e}")
+            return []
