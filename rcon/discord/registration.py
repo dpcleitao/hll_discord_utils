@@ -47,18 +47,18 @@ class Registration(commands.Cog, DiscordBase):
     @app_commands.command(name="register", description="Register your T17 account")
     @app_commands.describe(
         t17_name="Your T17 name",
-        vote_reminders="Receive in-game vote reminders",
-        **({"clan_tag": "Your clan tag (optional)"} if self.update_nickname and "clan" in self.nickname_formats else {}),
-        **({"t17_number": "Your T17 number (optional)"} if self.update_nickname and "t17" in self.nickname_formats else {}),
-        **({"show_clan": "Show clan tag in nickname"} if self.update_nickname and "clan" in self.nickname_formats else {}),
-        **({"show_t17": "Show T17 number in nickname"} if self.update_nickname and "t17" in self.nickname_formats else {})
+        vote_reminders="Receive in-game vote reminders"
     )
-    async def register(self, interaction: discord.Interaction, t17_name: str,
-                      vote_reminders: bool = True,
-                      show_clan: bool = False,
-                      show_t17: bool = False,
-                      clan_tag: str = None, 
-                      t17_number: str = None):
+    async def register(
+        self,
+        interaction: discord.Interaction,
+        t17_name: str,
+        vote_reminders: bool = True,
+        clan_tag: Optional[str] = None,
+        t17_number: Optional[str] = None,
+        show_clan: Optional[bool] = False,
+        show_t17: Optional[bool] = False
+    ):
         try:
             logger.info(f"Registration request from {interaction.user.name} ({interaction.user.id}) for T17: {t17_name}")
             await interaction.response.defer(ephemeral=True)
