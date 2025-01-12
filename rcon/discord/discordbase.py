@@ -96,11 +96,13 @@ class DiscordBase:
             votreg_dis_user_id INTEGER UNIQUE,
             votreg_dis_nick TEXT,
             votreg_t17_id TEXT,
-            votereg_ask_reg_cnt INTEGER,
-            votereg_not_ingame_cnt INTEGER                                                         
+            votereg_ask_reg_cnt INTEGER DEFAULT 0,
+            votereg_not_ingame_cnt INTEGER DEFAULT 0,
+            votreg_last_updated INTEGER,
+            votreg_vote_reminders BOOLEAN DEFAULT TRUE                                                      
         )
         ''')
-        self.conn.commit()  
+        self.conn.commit()
 
     def create_Balance_Table(self):
         # Creates the table if it does not yet exist
