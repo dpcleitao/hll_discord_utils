@@ -13,13 +13,12 @@ class DiscordBase:
         
         # Ensure tables exist
         self._ensure_tables()
-        # Handle any necessary migrations
-        self._handle_migrations()
 
     def _ensure_tables(self):
         """Ensure all necessary tables exist"""
         try:
             with self.conn:
+                # Create voter registration table
                 self.cursor.execute('''
                     CREATE TABLE IF NOT EXISTS voter_register (
                         votreg_seqno INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,36 +39,27 @@ class DiscordBase:
                     ON voter_register(votreg_dis_user_id)
                 ''')
 
-                # Ensure version table exists
+                # Create message tracking table
                 self.cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS db_version (
-                        version INTEGER PRIMARY KEY
+                    CREATE TABLE IF NOT EXISTS message_ids (
+                        msg_name TEXT PRIMARY KEY,
+                        msg_id INTEGER
                     )
                 ''')
-                
-                # Initialize version if not set
-                self.cursor.execute('INSERT OR IGNORE INTO db_version (version) VALUES (1)')
+
         except sqlite3.Error as e:
             logger.error(f"Table creation error: {e}")
             raise
 
-    def _handle_migrations(self):
-        """Handle database migrations"""
+    def select_Message_Id(self, name):
+        """Get message ID from database"""
         try:
-            self.cursor.execute('SELECT version FROM db_version')
-            current_version = self.cursor.fetchone()[0]
-            logger.info(f"Current database version: {current_version}")
-
-            # Example migration logic
-            if current_version < 2:
-                logger.info("Applying migration to version 2...")
-                # Add any necessary migration steps here
-                self.cursor.execute('UPDATE db_version SET version = 2')
-                self.conn.commit()
-
+            self.cursor.execute('SELECT msg_id FROM message_ids WHERE msg_name = ?', (name,))
+            result = self.cursor.fetchone()
+            return result[0] if result else None
         except sqlite3.Error as e:
-            logger.error(f"Migration error: {e}")
-            raise
+            logger.error(f"Database error in select_Message_Id: {e}")
+            return None
 
     # Registration Methods
     def update_Voter_Registration(self, discord_user, discord_user_id, discord_nick, player_id, vote_reminders=True):
