@@ -47,6 +47,14 @@ class DiscordBase:
                     )
                 ''')
 
+                # Create key-value store table
+                self.cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS key_value (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                ''')
+
         except sqlite3.Error as e:
             logger.error(f"Table creation error: {e}")
             raise
@@ -181,4 +189,67 @@ class DiscordBase:
                 return True
         except sqlite3.Error as e:
             logger.error(f"Database error in increment_Ask_Registration_Count: {e}")
+            return False
+
+    def insert_Message_Id(self, name, msg_id):
+        """Insert message ID into database"""
+        try:
+            with self.conn:
+                self.cursor.execute('INSERT OR REPLACE INTO message_ids (msg_name, msg_id) VALUES (?, ?)', 
+                                  (name, msg_id))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in insert_Message_Id: {e}")
+            return False
+
+    def update_Message_Id(self, name, msg_id):
+        """Update message ID in database"""
+        try:
+            with self.conn:
+                self.cursor.execute('UPDATE message_ids SET msg_id = ? WHERE msg_name = ?', 
+                                  (msg_id, name))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in update_Message_Id: {e}")
+            return False
+
+    def get_User_Name(self, discord_user_id):
+        """Get user name from registration"""
+        try:
+            self.cursor.execute('SELECT votreg_dis_user FROM voter_register WHERE votreg_dis_user_id = ?', 
+                              (discord_user_id,))
+            result = self.cursor.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error as e:
+            logger.error(f"Database error in get_User_Name: {e}")
+            return None
+
+    def select_Key_Value(self, key):
+        """Get value by key from key_value store"""
+        try:
+            self.cursor.execute('SELECT value FROM key_value WHERE key = ?', (key,))
+            result = self.cursor.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error as e:
+            logger.error(f"Database error in select_Key_Value: {e}")
+            return None
+
+    def insert_Key_Value(self, key, value):
+        """Insert key-value pair"""
+        try:
+            with self.conn:
+                self.cursor.execute('INSERT INTO key_value (key, value) VALUES (?, ?)', (key, value))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in insert_Key_Value: {e}")
+            return False
+
+    def update_Key_Value(self, key, value):
+        """Update value for key"""
+        try:
+            with self.conn:
+                self.cursor.execute('UPDATE key_value SET value = ? WHERE key = ?', (value, key))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in update_Key_Value: {e}")
             return False

@@ -22,6 +22,11 @@ class VoteMap(commands.Cog, DiscordBase):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
+        self.registration = None
+        for cog in bot.cogs.values():
+            if isinstance(cog, Registration):
+                self.registration = cog
+                break
         self.in_Loop = False
         self.do_map_vote = False
         self.vote_map_active = True
@@ -723,41 +728,19 @@ class VoteMap(commands.Cog, DiscordBase):
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
 
-    async def query_Player_Database(self, query: str) -> List[str]:
-        try:
-            if len (query) > 1:       
-                payload ={"page_size": 25, "page": 1, "player_name": query}
-
-                result = await rcon.get_Player_History (payload)
-                player = result.get_Players_Name ()
-
-                if player is not None and len (player):
-                    return player[:25]
-                else:
-                    return None
-            else:
-                return None
-            
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            return None
-    
     @commands.Cog.listener()
     async def on_raw_poll_vote_remove(self, payload):
         try:
             if (self.vote_msg_id == payload.message_id) and (self.game_active and self.vote_active):
                 answer = payload.answer_id
-                name = await self.get_User_Name (payload.user_id)
-
-                logger.info (name + " removed vote for " + self.vote_msg.poll.answers[answer-1].text)
-                self.deleter_Voter (self.game_start, name, self.vote_msg.poll.answers[answer-1].text)
+                name = self.get_User_Name(payload.user_id)
                 
-                await self.set_Vote_Result ()
+                if name:
+                    logger.info(f"{name} removed vote for {self.vote_msg.poll.answers[answer-1].text}")
+                    self.delete_Voter(self.game_start, name, self.vote_msg.poll.answers[answer-1].text)
+                    await self.set_Vote_Result()
+                else:
+                    logger.warning(f"Unknown user {payload.user_id} tried to remove vote")
 
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-
-    async def check_registration(self, user_id: int) -> bool:
-        """Check if user is registered using the Registration system"""
-        reg_info = self.get_User_Registration(user_id)
-        return bool(reg_info)
+            logger.error(f"Vote removal error: {e}")
