@@ -159,12 +159,20 @@ class Registration(commands.Cog, DiscordBase):
             return []
 
     async def query_Player_Database(self, query: str) -> List[str]:
+        """Search for players in both RCON and database"""
         try:
             if len(query) > 1:       
+                # First check database
+                db_results = self.search_Players(query)
+                
+                # Then check RCON
                 payload = {"page_size": 25, "page": 1, "player_name": query}
                 result = await rcon.get_Player_History(payload)
-                players = result.get_Players_Name()
-                return players[:25] if players and len(players) else None
+                rcon_players = result.get_Players_Name() if result else []
+                
+                # Combine unique results
+                all_players = list(set(db_results + (rcon_players or [])))
+                return all_players[:25] if all_players else None
             return None
             
         except Exception as e:
