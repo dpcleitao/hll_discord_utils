@@ -55,6 +55,25 @@ class DiscordBase:
                     )
                 ''')
 
+                # Create balance table
+                self.cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS balance (
+                        timestamp INTEGER PRIMARY KEY,
+                        axis_level REAL,
+                        allied_level REAL,
+                        axis_distribution TEXT,
+                        allied_distribution TEXT
+                    )
+                ''')
+
+                # Create map vote table
+                self.cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS map_votes (
+                        msg_id INTEGER PRIMARY KEY,
+                        game_start INTEGER
+                    )
+                ''')
+
         except sqlite3.Error as e:
             logger.error(f"Table creation error: {e}")
             raise
@@ -259,16 +278,6 @@ class DiscordBase:
         try:
             with self.conn:
                 self.cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS balance (
-                        timestamp INTEGER PRIMARY KEY,
-                        axis_level REAL,
-                        allied_level REAL,
-                        axis_distribution TEXT,
-                        allied_distribution TEXT
-                    )
-                ''')
-                
-                self.cursor.execute('''
                     INSERT INTO balance (
                         timestamp, axis_level, allied_level, 
                         axis_distribution, allied_distribution
@@ -283,4 +292,35 @@ class DiscordBase:
                 return True
         except sqlite3.Error as e:
             logger.error(f"Database error in insert_Balance: {e}")
+            return False
+
+    def select_Last_Map_Vote(self, game_start):
+        """Get last map vote ID for a game"""
+        try:
+            self.cursor.execute('SELECT msg_id FROM map_votes WHERE game_start = ?', (game_start,))
+            result = self.cursor.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error as e:
+            logger.error(f"Database error in select_Last_Map_Vote: {e}")
+            return None
+
+    def insert_Map_Vote(self, msg_id, game_start):
+        """Insert map vote record"""
+        try:
+            with self.conn:
+                self.cursor.execute('INSERT INTO map_votes (msg_id, game_start) VALUES (?, ?)', 
+                                  (msg_id, game_start))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in insert_Map_Vote: {e}")
+            return False
+
+    def delete_Map_Vote(self, game_start):
+        """Delete map vote record"""
+        try:
+            with self.conn:
+                self.cursor.execute('DELETE FROM map_votes WHERE game_start = ?', (game_start,))
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Database error in delete_Map_Vote: {e}")
             return False
