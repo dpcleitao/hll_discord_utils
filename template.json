@@ -9,6 +9,7 @@
         "log_level": "INFO",
 
         "registration": [{
+            "enabled": true,
             "webhook_channel_id": null,
             "update_nickname": true,
             "nickname_format": "simple",

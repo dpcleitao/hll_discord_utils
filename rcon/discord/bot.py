@@ -24,48 +24,46 @@ class MainBot(commands.Bot):
         self.shutdown_event = asyncio.Event()
 
     async def on_ready(self):
-        logger.info (f'Logged in as {self.user} (ID: {self.user.id})')
+        logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
 
         while not self.shutdown_event.is_set():
-            await asyncio.sleep (5)
+            await asyncio.sleep(5)
 
     async def setup_hook(self):
-        
         if (config.get("rcon", 0, "server_status", 0, "enabled")):
-            logger.info ("Start server status")
-            await self.add_cog(ServerStatus(self)) 
+            logger.info("Start server status")
+            await self.add_cog(ServerStatus(self))
 
         if (config.get("rcon", 0, "map_rotation", 0, "enabled")):
-            logger.info ("Start map rotation")
-            await self.add_cog(MapRotation(self)) 
+            logger.info("Start map rotation")
+            await self.add_cog(MapRotation(self))
         
         if (config.get("rcon", 0, "server_balance", 0, "enabled")):
-            logger.info ("Start server balance")
-            await self.add_cog(Balance(self)) 
+            logger.info("Start server balance")
+            await self.add_cog(Balance(self))
         
         if (config.get("rcon", 0, "map_vote", 0, "enabled")):
-            logger.info ("Start map vote")
-            await self.add_cog(VoteMap(self)) 
+            logger.info("Start map vote")
+            await self.add_cog(VoteMap(self))
 
         if (config.get("rcon", 0, "auto_level", 0, "enabled")):
-            logger.info ("Start auto level")
-            await self.add_cog(AutoLevel(self)) 
+            logger.info("Start auto level")
+            await self.add_cog(AutoLevel(self))
 
         if (config.get("rcon", 0, "comfort_functions", 0, "enabled")):
-            logger.info ("Start comfort functions")
-            await self.add_cog(Comfort(self)) 
+            logger.info("Start comfort functions")
+            await self.add_cog(Comfort(self))
 
         if (config.get("rcon", 0, "registration", 0, "enabled")):
             logger.info("Start registration")
             await self.add_cog(Registration(self))
             
         await self.tree.sync()
-        logger.info ("Slash commands have been synced.")
-        
+        logger.info("Slash commands have been synced.")
 
     def run_bot(self):
-        self.tree.clear_commands (guild=discord.Object(id=1299285373855203349))
-        logger.info ("Slash commands have been synced.")
+        self.tree.clear_commands(guild=discord.Object(id=1299285373855203349))
+        logger.info("Slash commands have been synced.")
 
         token = config.get("rcon", 0, "discord_token")
         self.run(token)
@@ -80,7 +78,7 @@ def start_bot():
     global bot
     global bot_thread
 
-    bot = MainBot ()
+    bot = MainBot()
     bot_thread = threading.Thread(target=bot.run_bot)
     bot_thread.start()
 
@@ -90,8 +88,3 @@ def shutdown_bot():
 
     bot.shutdown_bot()
     bot_thread.join()
-
-async def setup_hook(bot):
-    server_config = config.get("rcon")[0]  # Get first server config
-    if server_config.get("registration", [{}])[0].get("enabled", False):
-        await bot.load_extension("rcon.discord.registration")
