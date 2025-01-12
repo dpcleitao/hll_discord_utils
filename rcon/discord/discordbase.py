@@ -11,89 +11,10 @@ class DiscordBase:
         self.conn = sqlite3.connect('hll_discord_helper.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
         
-        # Handle migrations first
-        self._ensure_version_table()
-        self._handle_migrations()
-        
-        # Then ensure other tables
+        # Ensure tables exist
         self._ensure_tables()
-
-    def _ensure_version_table(self):
-        """Create and initialize version tracking table"""
-        try:
-            with self.conn:
-                self.cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS db_version (
-                        version_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        version INTEGER NOT NULL,
-                        updated_at INTEGER NOT NULL
-                    )
-                ''')
-                
-                # Insert initial version if table is empty
-                self.cursor.execute('SELECT version FROM db_version ORDER BY version_id DESC LIMIT 1')
-                if not self.cursor.fetchone():
-                    self.cursor.execute(
-                        'INSERT INTO db_version (version, updated_at) VALUES (?, ?)',
-                        (1, int(time.time()))
-                    )
-        except sqlite3.Error as e:
-            logger.error(f"Version table error: {e}")
-            raise
-
-    def _get_db_version(self) -> int:
-        """Get current database version"""
-        try:
-            self.cursor.execute('SELECT version FROM db_version ORDER BY version_id DESC LIMIT 1')
-            result = self.cursor.fetchone()
-            return result[0] if result else 0
-        except sqlite3.Error as e:
-            logger.error(f"Error getting DB version: {e}")
-            return 0
-
-    def _update_db_version(self, new_version: int):
-        """Update database version"""
-        try:
-            with self.conn:
-                self.cursor.execute(
-                    'INSERT INTO db_version (version, updated_at) VALUES (?, ?)',
-                    (new_version, int(time.time()))
-                )
-        except sqlite3.Error as e:
-            logger.error(f"Error updating DB version: {e}")
-            raise
-
-    def _handle_migrations(self):
-        """Handle all necessary database migrations"""
-        current_version = self._get_db_version()
-        logger.info(f"Current database version: {current_version}")
-
-        try:
-            if current_version < 2:
-                logger.info("Applying migration to version 2...")
-                with self.conn:
-                    # Example migration: Add vote_reminders column
-                    self.cursor.execute('''
-                        ALTER TABLE voter_register 
-                        ADD COLUMN votreg_vote_reminders BOOLEAN DEFAULT TRUE
-                    ''')
-                self._update_db_version(2)
-
-            if current_version < 3:
-                logger.info("Applying migration to version 3...")
-                with self.conn:
-                    # Example: Add last_updated column
-                    self.cursor.execute('''
-                        ALTER TABLE voter_register 
-                        ADD COLUMN votreg_last_updated INTEGER DEFAULT ?
-                    ''', (int(time.time()),))
-                self._update_db_version(3)
-
-            # Add more migrations as needed...
-
-        except sqlite3.Error as e:
-            logger.error(f"Migration error: {e}")
-            raise
+        # Handle any necessary migrations
+        self._handle_migrations()
 
     def _ensure_tables(self):
         """Ensure all necessary tables exist"""
@@ -118,8 +39,36 @@ class DiscordBase:
                     CREATE INDEX IF NOT EXISTS idx_voter_register_user_id 
                     ON voter_register(votreg_dis_user_id)
                 ''')
+
+                # Ensure version table exists
+                self.cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS db_version (
+                        version INTEGER PRIMARY KEY
+                    )
+                ''')
+                
+                # Initialize version if not set
+                self.cursor.execute('INSERT OR IGNORE INTO db_version (version) VALUES (1)')
         except sqlite3.Error as e:
             logger.error(f"Table creation error: {e}")
+            raise
+
+    def _handle_migrations(self):
+        """Handle database migrations"""
+        try:
+            self.cursor.execute('SELECT version FROM db_version')
+            current_version = self.cursor.fetchone()[0]
+            logger.info(f"Current database version: {current_version}")
+
+            # Example migration logic
+            if current_version < 2:
+                logger.info("Applying migration to version 2...")
+                # Add any necessary migration steps here
+                self.cursor.execute('UPDATE db_version SET version = 2')
+                self.conn.commit()
+
+        except sqlite3.Error as e:
+            logger.error(f"Migration error: {e}")
             raise
 
     # Registration Methods
