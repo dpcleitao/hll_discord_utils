@@ -56,10 +56,12 @@ class Registration(commands.Cog, DiscordBase):
     @app_commands.describe(
         t17_name="Your T17 name",
         clan_tag="Your clan tag (optional)",
-        t17_number="Your T17 number (optional)"
+        t17_number="Your T17 number (optional)",
+        vote_reminders="Receive in-game vote reminders (default: True)"
     )
     async def register(self, interaction: discord.Interaction, t17_name: str, 
-                      clan_tag: str = None, t17_number: str = None):
+                      clan_tag: str = None, t17_number: str = None,
+                      vote_reminders: bool = True):
         """Register a Discord user with their T17 account"""
         try:
             logger.info(f"Registration request from {interaction.user.name} ({interaction.user.id}) for T17: {t17_name}")
@@ -69,7 +71,8 @@ class Registration(commands.Cog, DiscordBase):
                 discord_user=interaction.user.name,
                 discord_user_id=interaction.user.id,
                 discord_nick=interaction.user.display_name,
-                player_id=t17_name
+                player_id=t17_name,
+                vote_reminders=vote_reminders  # Pass the vote_reminders preference
             )
             
             if not success:
