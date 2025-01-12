@@ -10,13 +10,12 @@
 
         "registration": [{
             "enabled": true,
+            "registered_role_id": null,
             "webhook_channel_id": null,
             "update_nickname": true,
-            "nickname_format": "simple",
+            "nickname_formats": ["simple", "clan", "t17"],
             "clan_position": "suffix",
-            "hidden_clan_tags": ["BAD", "TOXIC"],
-            "_comment": "nickname_format options: 'simple' (T17 name only), 't17' (with T17 number), 'clan' (with clan tag)",
-            "_comment2": "clan_position options: 'prefix' ([TAG] Name) or 'suffix' (Name [TAG])"
+            "hidden_clan_tags": ["BAD", "TOXIC"]
         }],
         "comfort_functions":[{
                 "enabled": false,

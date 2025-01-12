@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 import asyncio
-from typing import List
+from typing import List, Optional
 from rcon.discord.discordbase import DiscordBase
 import rcon.rcon as rcon
 from lib.config import config
@@ -26,10 +26,12 @@ class Registration(commands.Cog, DiscordBase):
         self.shutdown_event = asyncio.Event()
         self.in_Loop = False
         self.loop_started = False
-        self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook")
+        self.webhook_url = config.get("rcon", 0, "registration", 0, "webhook_channel_id")
         self.update_nickname = config.get("rcon", 0, "registration", 0, "update_nickname")
-        self.nickname_format = config.get("rcon", 0, "registration", 0, "nickname_format")
-        self.clan_position = config.get("rcon", 0, "registration", 0, "clan_position")
+        self.nickname_formats = config.get("rcon", 0, "registration", 0, "nickname_formats", default=["simple"])
+        self.clan_position = config.get("rcon", 0, "registration", 0, "clan_position", default="suffix")
+        self.hidden_clan_tags = config.get("rcon", 0, "registration", 0, "hidden_clan_tags", default=[])
+        self.role_id = config.get("rcon", 0, "registration", 0, "registered_role_id")
 
     async def background_task(self):
         while not self.shutdown_event.is_set():
@@ -45,32 +47,38 @@ class Registration(commands.Cog, DiscordBase):
     @app_commands.command(name="register", description="Register your T17 account")
     @app_commands.describe(
         t17_name="Your T17 name",
-        clan_tag="Your clan tag (required for clan format)",
-        t17_number="Your T17 number (required for t17 format)",
         vote_reminders="Receive in-game vote reminders",
-        nickname_format="Format of your nickname (simple, clan, or t17)"
+        **({"clan_tag": "Your clan tag (optional)"} if self.update_nickname and "clan" in self.nickname_formats else {}),
+        **({"t17_number": "Your T17 number (optional)"} if self.update_nickname and "t17" in self.nickname_formats else {}),
+        **({"show_clan": "Show clan tag in nickname"} if self.update_nickname and "clan" in self.nickname_formats else {}),
+        **({"show_t17": "Show T17 number in nickname"} if self.update_nickname and "t17" in self.nickname_formats else {})
     )
-    @app_commands.choices(nickname_format=[
-        app_commands.Choice(name="Simple (T17 name only)", value="simple"),
-        app_commands.Choice(name="With Clan Tag", value="clan"),
-        app_commands.Choice(name="With T17 Number", value="t17")
-    ])
-    async def register(self, interaction: discord.Interaction, t17_name: str, 
-                      nickname_format: str,
+    async def register(self, interaction: discord.Interaction, t17_name: str,
+                      vote_reminders: bool = True,
+                      show_clan: bool = False,
+                      show_t17: bool = False,
                       clan_tag: str = None, 
-                      t17_number: str = None,
-                      vote_reminders: bool = True):
+                      t17_number: str = None):
         try:
             logger.info(f"Registration request from {interaction.user.name} ({interaction.user.id}) for T17: {t17_name}")
             await interaction.response.defer(ephemeral=True)
             
             # Validate required fields based on format
-            if nickname_format == "clan" and not clan_tag:
-                await interaction.followup.send("Clan tag is required for clan format", ephemeral=True)
+            if show_clan and not clan_tag:
+                await interaction.followup.send("Clan tag is required if you want to show it in your nickname", ephemeral=True)
                 return
                 
-            if nickname_format == "t17" and not t17_number:
-                await interaction.followup.send("T17 number is required for t17 format", ephemeral=True)
+            if show_t17 and not t17_number:
+                await interaction.followup.send("T17 number is required if you want to show it in your nickname", ephemeral=True)
+                return
+
+            # Validate format options against config
+            if show_clan and "clan" not in self.nickname_formats:
+                await interaction.followup.send("Clan tag display is not enabled on this server", ephemeral=True)
+                return
+
+            if show_t17 and "t17" not in self.nickname_formats:
+                await interaction.followup.send("T17 number display is not enabled on this server", ephemeral=True)
                 return
 
             success = self.update_Voter_Registration(
@@ -85,25 +93,53 @@ class Registration(commands.Cog, DiscordBase):
                 await interaction.followup.send("Registration failed. Please try again later.", ephemeral=True)
                 return
 
-            if self.update_nickname:
-                new_nickname = self.format_nickname(t17_name, clan_tag, t17_number)
+            registration_message = "Registration successful!"
+
+            # Add role if configured
+            if self.role_id:
                 try:
+                    role = interaction.guild.get_role(int(self.role_id))
+                    if role:
+                        await interaction.user.add_roles(role)
+                        logger.info(f"Added registration role to user: {interaction.user.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to add role to user: {interaction.user.name} - {e}")
+
+            # Try to update nickname if enabled
+            if self.update_nickname:
+                try:
+                    new_nickname = self.format_nickname(
+                        display_name=t17_name, 
+                        clan_tag=clan_tag, 
+                        t17_number=t17_number, 
+                        show_clan=show_clan,
+                        show_t17=show_t17
+                    )
                     await interaction.user.edit(nick=new_nickname)
-                    await interaction.followup.send(f"Registration successful! Nickname updated to: {new_nickname}", ephemeral=True)
+                    registration_message += f"\nNickname updated to: `{new_nickname}`"
                 except discord.Forbidden:
                     view = CopyNicknameView(new_nickname)
-                    await interaction.followup.send(
-                        f"Registration successful! I don't have permission to change your nickname.\n"
-                        f"Please set your nickname to: `{new_nickname}`", 
-                        view=view,
-                        ephemeral=True
-                    )
-            else:
-                await interaction.followup.send("Registration successful!", ephemeral=True)
+                    registration_message += f"\nI don't have permission to change your nickname.\nPlease set your nickname to: `{new_nickname}`"
+                    await interaction.followup.send(registration_message, view=view, ephemeral=True)
+                    try:
+                        if self.webhook_url:
+                            webhook = discord.SyncWebhook.from_url(self.webhook_url)
+                            webhook.send(f"New registration: {interaction.user.mention} as {t17_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to send webhook: {e}")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to update nickname for user: {interaction.user.name} - {e}")
 
-            if self.webhook_url:
-                webhook = discord.SyncWebhook.from_url(self.webhook_url)
-                webhook.send(f"New registration: {interaction.user.mention} as {t17_name}")
+            await interaction.followup.send(registration_message, ephemeral=True)
+
+            # Try to send webhook notification
+            try:
+                if self.webhook_url:
+                    webhook = discord.SyncWebhook.from_url(self.webhook_url)
+                    webhook.send(f"New registration: {interaction.user.mention} as {t17_name}")
+            except Exception as e:
+                logger.warning(f"Failed to send webhook: {e}")
 
         except Exception as e:
             logger.error(f"Registration error: {e}")
@@ -135,19 +171,18 @@ class Registration(commands.Cog, DiscordBase):
             logger.error(f"Database query error: {e}")
             return None
 
-    def format_nickname(self, display_name: str, clan_tag: str = None, t17_number: str = None) -> str:
+    def format_nickname(self, display_name: str, clan_tag: str = None, t17_number: str = None, show_clan: bool = False, show_t17: bool = False) -> str:
         try:
-            if self.nickname_format == "simple":
-                return display_name[:32]
-            
-            if self.nickname_format == "t17" and t17_number:
-                return f"{display_name[:27]}#{t17_number}"[:32]
-            
-            if self.nickname_format == "clan" and clan_tag:
+            result = display_name
+
+            if show_clan and clan_tag and "clan" in self.nickname_formats and clan_tag.upper() not in [tag.upper() for tag in self.hidden_clan_tags]:
                 tag = f"[{clan_tag[:4]}]"
-                return (f"{tag} {display_name}" if self.clan_position == "prefix" else f"{display_name} {tag}")[:32]
-            
-            return display_name[:32]
+                result = f"{tag} {result}" if self.clan_position == "prefix" else f"{result} {tag}"
+
+            if show_t17 and t17_number and "t17" in self.nickname_formats:
+                result = f"{result}#{t17_number}"
+
+            return result[:32]
             
         except Exception as e:
             logger.error(f"Nickname format error: {e}")
