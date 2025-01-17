@@ -745,3 +745,16 @@ class VoteMap(commands.Cog, DiscordBase):
 
         except Exception as e:
             logger.error(f"Vote removal error: {e}")
+
+    def get_voter_reminder_preference(self, user_id):
+        """Get the voter reminder preference for a user."""
+        try:
+            result = self.select_T17_Voter_Registration(user_id)
+            if result:
+                # votereg_ask_reg_cnt is the column that stores reminder preference
+                # Index 4 in the result tuple
+                return bool(result[4]) if len(result) > 4 else True
+            return True  # Default to True if not found
+        except Exception as e:
+            logger.error(f"Error getting voter reminder preference: {e}")
+            return True  # Default to True on error
